@@ -1,6 +1,6 @@
 # db-migrator-releases
 
-DB Migrator 릴리스 배포 채널 (설치 exe · app-image zip · 실행용 jar zip). 소스는 비공개 레포에서 관리됩니다.
+DB Migrator 릴리스 배포 채널 (app-image zip · 실행용 jar zip). 소스는 비공개 레포에서 관리됩니다.
 
 DB Migrator는 SQL Server의 스키마와 데이터를 Tibero(또는 Oracle)로 옮기는 Windows용 데스크톱 도구입니다.
 
@@ -15,15 +15,16 @@ DB Migrator는 SQL Server의 스키마와 데이터를 Tibero(또는 Oracle)로 
 
 [Releases](https://github.com/fdrn9999/db-migrator-releases/releases)에서 최신 버전(Latest)을 받습니다.
 
+설치 프로그램(exe)은 올리지 않습니다 — exe 내려받기가 막힌 환경에서도 쓸 수 있도록 **zip 파일만** 올립니다(0.1.0에만 설치 프로그램이 함께 있습니다). 설치는 zip을 원하는 폴더에 푸는 것이고, 지울 때는 그 폴더를 지우면 됩니다.
+
 | 파일 | 용도 |
 |---|---|
-| `DB-Migrator-<버전>-setup.exe` | 설치 프로그램. 대부분 이것을 받으시면 됩니다. Java가 없어도 됩니다(런타임 포함). 사용자별 설치라 관리자 권한이 필요 없습니다 |
-| `DB-Migrator-<버전>-win-app-image.zip` | 설치 없이 쓰는 경우. 압축을 풀고 `DB Migrator.exe` 실행 |
+| `DB-Migrator-<버전>-win-app-image.zip` | 대부분 이것을 받으시면 됩니다. Java가 없어도 됩니다(런타임 포함). 압축을 풀고 `DB Migrator` 폴더의 `DB Migrator.exe` 실행. 관리자 권한이 필요 없습니다 |
 | `DB-Migrator-<버전>-jar.zip` | JDK 17 이상이 있는 경우. 압축을 풀고 `scripts\run.bat`(화면) 또는 `scripts\run-cli.bat`(명령줄, 0.2.0부터) 실행 |
 | `SHA256SUMS.txt` | 위 파일들의 SHA-256 |
 
-- 명령줄은 jar 묶음으로만 실행할 수 있습니다(JDK 17 이상 필요). 설치본과 app-image에는 명령줄용 실행 파일이 없습니다.
-- 설치 프로그램과 실행 파일에는 코드 서명이 없어, 처음 실행할 때 Windows가 경고(SmartScreen)를 띄울 수 있습니다.
+- 명령줄은 jar 묶음으로만 실행할 수 있습니다(JDK 17 이상 필요). app-image에는 명령줄용 실행 파일이 없습니다.
+- 실행 파일에는 코드 서명이 없어, 처음 실행할 때 Windows가 경고(SmartScreen)를 띄울 수 있습니다.
 - Tibero JDBC 드라이버가 함께 들어 있습니다. Oracle JDBC 드라이버는 들어 있지 않아, Oracle로 옮기려면 설정 화면에서 드라이버 jar를 지정합니다.
 
 설정과 로그는 `%USERPROFILE%\.dbmigrator\`에 저장됩니다. 비밀번호는 파일에 저장하지 않습니다.
