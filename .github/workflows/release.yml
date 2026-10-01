@@ -1,0 +1,156 @@
+# The public channel's release workflow. It runs in fdrn9999/db-migrator-releases, where it is installed as
+# .github/workflows/release.yml; the copy in the source repository (.github/public-repo/release.yml) is the original --
+# change it there and copy it over. It is not a workflow of the source repository, which only tags its releases.
+#
+# Every run publishes whatever this repository still lacks: each release tag vX.Y.Z of the source repository without a
+# release here is built on Windows from that tag with scripts\package-windows.bat into the app-image zip and the jar
+# zip (+ SHA256SUMS.txt) -- zip files only, no installer --, smoke-tested there, and released with the source's
+# docs/release-notes/<version>.md as the body. A publication that failed is made by the next run.
+#
+# The source repository is private. It is read with the secret SOURCE_DEPLOY_KEY, the private half of a read-only
+# deploy key of the source repository; releases are written with this repository's own token, in the publish job only.
+# Runs every hour and by hand ("Run workflow"); nothing is built when nothing is missing. GitHub turns a schedule off
+# after 60 days without a commit here -- run it by hand then, and re-enable it on the Actions tab.
+#
+# Logic, in the source repository: .github/scripts/ public-plan.sh, public_assets.py, public-smoke.ps1,
+# public-release.sh.
+name: Release
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 * * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  SOURCE_REPO: fdrn9999/db-migrator
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      versions: ${{ steps.plan.outputs.versions }}
+      latest: ${{ steps.plan.outputs.latest }}
+    steps:
+      - name: Check out the source
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ssh-key: ${{ secrets.SOURCE_DEPLOY_KEY }}
+          fetch-depth: 0
+
+      - name: Plan the releases
+        id: plan
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLIC_REPO: ${{ github.repository }}
+        run: .github/scripts/public-plan.sh
+
+  build:
+    needs: plan
+    if: needs.plan.outputs.versions != '' && needs.plan.outputs.versions != '[]'
+    runs-on: windows-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        version: ${{ fromJSON(needs.plan.outputs.versions) }}
+    env:
+      VERSION: ${{ matrix.version }}
+    steps:
+      # The key is not left in the checkouts: the steps below run the tag's own code.
+      - name: Check out the source's scripts
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ssh-key: ${{ secrets.SOURCE_DEPLOY_KEY }}
+          persist-credentials: false
+          path: ci
+
+      - name: Check out v${{ matrix.version }}
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ssh-key: ${{ secrets.SOURCE_DEPLOY_KEY }}
+          persist-credentials: false
+          ref: refs/tags/v${{ matrix.version }}
+          path: src
+
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+          cache-dependency-path: src/pom.xml
+
+      - name: Package (scripts\package-windows.bat)
+        shell: cmd
+        env:
+          PKG_TYPE: app-image
+        run: |
+          call src\scripts\package-windows.bat
+          if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
+
+      # Into staging\public-<version>\, so that the artifact holds that folder whether one version is published or several.
+      - name: Assemble the public files
+        shell: pwsh
+        run: python ci/.github/scripts/public_assets.py src $env:VERSION staging/public-$env:VERSION
+
+      - name: Smoke test
+        shell: pwsh
+        run: ci/.github/scripts/public-smoke.ps1 -Version $env:VERSION -Assets staging/public-$env:VERSION -Evidence evidence
+
+      - name: Keep the evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: smoke-${{ matrix.version }}
+          path: evidence/
+          if-no-files-found: ignore
+          retention-days: 14
+
+      # For the publish job of this run only, so kept a day.
+      - name: Hand the files to the publish job
+        uses: actions/upload-artifact@v6
+        with:
+          name: public-${{ matrix.version }}
+          path: staging/
+          if-no-files-found: error
+          retention-days: 1
+          compression-level: 0
+
+  publish:
+    needs: [plan, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: Check out the source's scripts and notes
+        uses: actions/checkout@v5
+        with:
+          repository: ${{ env.SOURCE_REPO }}
+          ssh-key: ${{ secrets.SOURCE_DEPLOY_KEY }}
+          persist-credentials: false
+
+      # Each artifact holds public-<version>\; merged, they land as public/public-<version>/ for one version or several.
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: public-*
+          merge-multiple: true
+          path: public
+
+      - name: Publish the releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLIC_REPO: ${{ github.repository }}
+          VERSIONS: ${{ needs.plan.outputs.versions }}
+          LATEST: ${{ needs.plan.outputs.latest }}
+        run: .github/scripts/public-release.sh
