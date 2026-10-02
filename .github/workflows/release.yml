@@ -3,9 +3,10 @@
 # change it there and copy it over. It is not a workflow of the source repository, which only tags its releases.
 #
 # Every run publishes whatever this repository still lacks: each release tag vX.Y.Z of the source repository without a
-# release here is built on Windows from that tag with scripts\package-windows.bat into the app-image zip and the jar
-# zip (+ SHA256SUMS.txt) -- zip files only, no installer --, smoke-tested there, and released with the source's
-# docs/release-notes/<version>.md as the body. A publication that failed is made by the next run.
+# release here is built on Windows from that tag with scripts\package-windows.bat into the installer zip, the
+# app-image zip and the jar zip (+ SHA256SUMS.txt) -- zip files only: the installer is published inside a zip, never
+# as a bare .exe --, smoke-tested there, and released with the source's docs/release-notes/<version>.md as the body.
+# A publication that failed is made by the next run.
 #
 # The source repository is private. It is read with the secret SOURCE_DEPLOY_KEY, the private half of a read-only
 # deploy key of the source repository; releases are written with this repository's own token, in the publish job only.
@@ -93,7 +94,7 @@ jobs:
       - name: Package (scripts\package-windows.bat)
         shell: cmd
         env:
-          PKG_TYPE: app-image
+          PKG_TYPE: exe
         run: |
           call src\scripts\package-windows.bat
           if %ERRORLEVEL% NEQ 0 exit /b %ERRORLEVEL%
