@@ -6,6 +6,8 @@
 # release here is built on Windows from that tag with scripts\package-windows.bat into the installer zip, the
 # app-image zip and the jar zip (+ SHA256SUMS.txt) -- zip files only: the installer is published inside a zip, never
 # as a bare .exe --, smoke-tested there, and released with the source's docs/release-notes/<version>.md as the body.
+# From 0.9.2 a fourth zip holds the source of the shipped third-party components that must come with it
+# (third_party_sources.py; SOURCE-CODE.md in the source repository).
 # A publication that failed is made by the next run.
 #
 # The source repository is private. It is read with the secret SOURCE_DEPLOY_KEY, the private half of a read-only
@@ -13,8 +15,8 @@
 # Runs every hour and by hand ("Run workflow"); nothing is built when nothing is missing. GitHub turns a schedule off
 # after 60 days without a commit here -- run it by hand then, and re-enable it on the Actions tab.
 #
-# Logic, in the source repository: .github/scripts/ public-plan.sh, public_assets.py, public-smoke.ps1,
-# public-release.sh.
+# Logic, in the source repository: .github/scripts/ public-plan.sh, pinned_jdk.py, public_assets.py (with
+# third_party_sources.py), public-smoke.ps1, public-release.sh.
 name: Release
 
 on:
@@ -90,6 +92,13 @@ jobs:
           java-version: '21'
           cache: maven
           cache-dependency-path: src/pom.xml
+
+      # jpackage bundles the runtime of the JDK it runs from. From 0.9.2 the tag's third-party/inventory.tsv names the
+      # JDK whose runtime ships (runtime-jdk: url and SHA-256); it is fetched, checked and set as JPACKAGE_JDK for the
+      # package step, which refuses an image whose runtime is not that one. Older tags package with the JDK above.
+      - name: Fetch the JDK to package with
+        shell: pwsh
+        run: python ci/.github/scripts/pinned_jdk.py src $env:RUNNER_TEMP/pinned-jdk
 
       - name: Package (scripts\package-windows.bat)
         shell: cmd
